@@ -14,11 +14,13 @@ struct timespec {
 */
 struct timespec temp_timespec;
 
+// struct to hold times for one thread
 typedef struct thread_time {
     long wall_time;
     long burst_time;
 } thread_time;
 
+// struct to hold all thread_times
 typedef struct timing_results {
     long wall_elapsed_time;
     unsigned int thread_count;
@@ -45,12 +47,14 @@ static void * benchmark(void *arg)
         exit(1);
     }
     
+    // get time before benchmark (wall clock ("normal") time and thread cpu time)
     clock_gettime(CLOCK_MONOTONIC, &thread_wall_timespec);
     clock_gettime(thread_clock_id, &thread_burst_timespec);
     thread_time_struct->wall_time = - (thread_wall_timespec.tv_nsec + thread_wall_timespec.tv_sec * 1e9);
     thread_time_struct->burst_time = - (thread_burst_timespec.tv_nsec + thread_burst_timespec.tv_sec * 1e9);
     
-    // TODO: write real benchmark
+
+    // this was just a placeholder to do some calculations to test if calculating the times works. We still have to write the actual code we want to use as a benchmark
     int *test = (int *)malloc(sizeof(int) * 100000000);
     test[0] = 0;
     test[1] = 1;
@@ -62,6 +66,8 @@ static void * benchmark(void *arg)
     }
     free(test);
     
+
+    // calculate elapsed time by subtracting time before benchmark from time after benchmark
     clock_gettime(CLOCK_MONOTONIC, &thread_wall_timespec);
     clock_gettime(thread_clock_id, &thread_burst_timespec);
     thread_time_struct->wall_time += (thread_wall_timespec.tv_nsec + thread_wall_timespec.tv_sec * 1e9);
@@ -73,17 +79,22 @@ static void * benchmark(void *arg)
 
 timing_results run_benchmark(unsigned thread_count)
 {
+    // instatiate the timing_results struct we use to get the thread timing values
     timing_results return_thing(thread_count);
     
+    // create an array to hold the pthread references
     pthread_t *thread_ids = (pthread_t *)malloc(sizeof(pthread_t) * thread_count);
     
+    // I don't know if we need the programm execution time, I mainly wrote this to familiarize myself with the clock_gettime() function
     clock_gettime(CLOCK_MONOTONIC, &temp_timespec);
     return_thing.wall_elapsed_time = - (temp_timespec.tv_nsec + temp_timespec.tv_sec * 1e9);
 
+    // creates the specified amount of p-threads and lets them execute the benchmark function
     for (unsigned int i = 0; i < thread_count; i++) {
         pthread_create(&(thread_ids[i]), NULL, benchmark, &(return_thing.thread_times[i])); // set scheduling here?
     }
-    printf("Created all threads\n");
+    
+    // waits for all p-threads to finish execution
     for (unsigned int i = 0; i < thread_count; i++) {
         pthread_join(thread_ids[i], NULL);
     }
@@ -97,14 +108,16 @@ timing_results run_benchmark(unsigned thread_count)
 
 int main(int argc, char *argv[])
 {
+    // the next 3 lines are copied from the presentation and illustrate how to calculate theses 3 metrics (just had them so i didn't have to look at the presentation)
     // Burst time: CLOCK_THREAD_CPUTIME_ID
     // Waiting time: CLOCK_REALTIME - CLOCK_THREAD_CPUTIME_ID
     // Throughput : (Burst_time_thread1 + ... + Burst_time_thread_N) / N
     
-    printf("Per thread ram: %f gb\n", sizeof(int) * 100000000.0 * 1e-9);
 
+    // runs the benchmark with the specified amount of threads, which returns a timing_results struct which contains the executions times of the threads...
     timing_results timing_thing = run_benchmark(24);
     
+    // calculate and output the burst time, waiting time and thoughput
     long sum_burst_time = 0;
     printf("Wall time: %ld ns\n", timing_thing.wall_elapsed_time);
     for (int i = 0; i < timing_thing.thread_count; i++) {
